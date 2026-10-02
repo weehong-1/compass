@@ -2,6 +2,25 @@
   "name": "compass",
   "version": "0.1.0",
   "private": true,
+  "description": "风水罗盘：在手机上使用的中国罗盘，二十四山、后天八卦、坐向兼向与空亡提示，支持 iOS 与 Android 指南针",
+  "keywords": [
+    "luopan",
+    "feng-shui",
+    "compass",
+    "罗盘",
+    "风水",
+    "nextjs",
+    "pwa"
+  ],
+  "homepage": "https://github.com/weehong-1/compass#readme",
+  "bugs": {
+    "url": "https://github.com/weehong-1/compass/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weehong-1/compass.git"
+  },
+  "author": "Wee Hong (https://github.com/weehong-1)",
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/build-sw.mjs",
