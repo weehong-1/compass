@@ -16,8 +16,10 @@ const hash = createHash("sha256");
 const urls = [];
 for (const file of walk(OUT).sort()) {
   const path = "/" + relative(OUT, file).split(sep).join("/");
-  // RSC 数据（.txt）只在页面之间切换时用，这里只有一页
-  if (path === "/sw.js" || path.endsWith(".txt") || path.endsWith(".map")) continue;
+  // RSC 数据（.txt）只在页面之间切换时用，这里只有一页；404 页离线时用不到。
+  // 清单里任何一个文件取不到，整个离线缓存都会安装失败，所以宁少勿多。
+  if (path === "/sw.js" || /\.(txt|map)$/.test(path)) continue;
+  if (path.endsWith(".html") && path !== "/index.html") continue;
   hash.update(path).update(readFileSync(file));
   urls.push(path === "/index.html" ? "/" : path);
 }
