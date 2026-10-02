@@ -2,12 +2,12 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
+import { ELEMENT_FILL } from "../src/components/luopan/palette.ts";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
-// 自子山起顺时针的正五行，配色与 src/components/luopan/palette.ts 相同
-const ELEMENTS = "水水土土木木木木土木火火火火土土金金金金土金水水".split("");
-const FILL = { 木: "#9dbf8e", 火: "#efa58c", 土: "#d9a85b", 金: "#f4f1e8", 水: "#23262b" };
+// 自子山起顺时针各山的正五行（同 src/domain/mountains.ts）；配色直接取盘面用的那一份
+const ELEMENTS = "water water earth earth wood wood wood wood earth wood fire fire fire fire earth earth metal metal metal metal earth metal water water".split(" ");
 
 function polar(r, deg) {
   const a = (deg * Math.PI) / 180;
@@ -25,7 +25,7 @@ function sector(r0, r1, a0, a1) {
 /** full：木纹铺满（maskable 与 apple icon 用），否则为圆角方块。scale：盘面相对大小。 */
 function iconSvg({ full, scale }) {
   const mountains = ELEMENTS.map(
-    (e, i) => `<path d="${sector(118, 182, i * 15 - 7.5, i * 15 + 7.5)}" fill="${FILL[e]}"/>`,
+    (e, i) => `<path d="${sector(118, 182, i * 15 - 7.5, i * 15 + 7.5)}" fill="${ELEMENT_FILL[e].fill}"/>`,
   ).join("");
   const palaceLines = Array.from({ length: 8 }, (_, k) => {
     const [x0, y0] = polar(118, 22.5 + k * 45);

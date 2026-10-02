@@ -1,28 +1,31 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { shortestDelta } from "@/domain/angle";
 import { Base } from "./Base";
 import { Dial } from "./Dial";
 import { Needle } from "./Needle";
 import { Overlay } from "./Overlay";
-import { VIEW, hitTest } from "./geometry";
+import { VIEW, centerAtPoint } from "./geometry";
 
 const TAP_SLOP_PX = 8;
 const WHEEL_STEP_PX = 60;
 
 export interface LuopanProps {
-  /** 未取模的向度：盘面转 -rotation 度，跨过 0° 时不会倒转一圈。 */
-  rotation: number;
-  label: string;
+  /** 未取模的向度：盘面转 -unwrappedFacing 度，跨过 0° 时不会倒转一圈。 */
+  unwrappedFacing: number;
+  /** 当前向度（0.1° 精度），给辅助技术用。 */
+  facingDeg: number;
+  /** 读屏软件念出的读数，例如「坐子向午，向 180.0°」。 */
+  valueText: string;
   /** 磁针有惯性地跟上盘面；减少动态效果时关掉。 */
   springyNeedle: boolean;
   onDragStart: () => void;
   /** 手指在画面上顺时针转了 delta 度。 */
   onDrag: (delta: number) => void;
-  /** 点了某一格，要把该格中线对准向线。 */
+  /** 点了某一格，要把该格中线转到天心十道上方（向）。 */
   onAlign: (center: number) => void;
-  /** 滚轮转了一格；正值为向度增加。 */
+  /** 滚轮转了几格；正值为向度增加。 */
   onWheelStep: (steps: number, fine: boolean) => void;
 }
 
@@ -35,8 +38,9 @@ interface DragState {
 }
 
 export function Luopan({
-  rotation,
-  label,
+  unwrappedFacing,
+  facingDeg,
+  valueText,
   springyNeedle,
   onDragStart,
   onDrag,
@@ -45,13 +49,6 @@ export function Luopan({
 }: LuopanProps) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState | null>(null);
-  const rotationRef = useRef(rotation);
-  const wheelRef = useRef(onWheelStep);
-
-  useEffect(() => {
-    rotationRef.current = rotation;
-    wheelRef.current = onWheelStep;
-  });
 
   /** 指针相对罗盘中心的极坐标：radius 以 viewBox 单位计，angle 自上方顺时针。 */
   const polarOf = (clientX: number, clientY: number) => {
@@ -103,39 +100,47 @@ export function Luopan({
     drag.current = null;
     if (d.moved) return;
     const p = polarOf(e.clientX, e.clientY);
-    const hit = hitTest(p.radius, p.angle, rotationRef.current);
-    if (hit) onAlign(hit.center);
+    const center = centerAtPoint(p.radius, p.angle, unwrappedFacing);
+    if (center !== null) onAlign(center);
   };
 
   const onPointerCancel = (e: React.PointerEvent) => {
     if (drag.current?.pointerId === e.pointerId) drag.current = null;
   };
 
+  const onWheel = useEffectEvent((e: WheelEvent, acc: { px: number }) => {
+    e.preventDefault();
+    const px = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 40 : 1);
+    acc.px += px;
+    const steps = Math.trunc(acc.px / WHEEL_STEP_PX);
+    if (steps !== 0) {
+      acc.px = 0;
+      onWheelStep(steps, e.shiftKey);
+    }
+  });
+
   // 滚轮要能 preventDefault，React 的 onWheel 是 passive，所以自己挂
   useEffect(() => {
     const el = ref.current!;
-    let acc = 0;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const px = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 40 : 1);
-      acc += px;
-      const steps = Math.trunc(acc / WHEEL_STEP_PX) || (Math.abs(px) >= WHEEL_STEP_PX ? Math.sign(px) : 0);
-      if (steps !== 0) {
-        acc = 0;
-        wheelRef.current(steps, e.shiftKey);
-      }
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    const acc = { px: 0 };
+    const handler = (e: WheelEvent) => onWheel(e, acc);
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
   }, []);
 
-  const transform = `rotate(${-rotation}deg)`;
+  const transform = `rotate(${-unwrappedFacing}deg)`;
 
   return (
+    // 罗盘本身就是一个转盘式的 slider：方向键由全局键盘处理调整向度
     <div
       ref={ref}
-      role="img"
-      aria-label={label}
+      role="slider"
+      tabIndex={0}
+      aria-label="罗盘"
+      aria-valuemin={0}
+      aria-valuemax={360}
+      aria-valuenow={facingDeg}
+      aria-valuetext={valueText}
       className="luopan relative aspect-square w-full touch-none select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

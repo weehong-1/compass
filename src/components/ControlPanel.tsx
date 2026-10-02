@@ -42,12 +42,13 @@ export function ControlPanel({
               <button
                 key="compass"
                 type="button"
+                id="start-compass"
                 onClick={onStartCompass}
                 disabled={!compassOk}
                 className="grid-button grid-button-compass"
               >
                 <CompassIcon />
-                <span>指南针</span>
+                <span>开启指南针</span>
               </button>
             ) : (
               <button
@@ -98,8 +99,7 @@ export function ControlPanel({
           <button type="button" className="step-button" onClick={() => onNudge(-1)} aria-label="向度减 1 度">
             −1°
           </button>
-          {/* 换了外部度数就重建，草稿跟着重置 */}
-          <DegreeInput key={facingDeg} facingDeg={facingDeg} onEnter={onEnter} />
+          <DegreeInput facingDeg={facingDeg} onEnter={onEnter} />
           <button type="button" className="step-button" onClick={() => onNudge(1)} aria-label="向度加 1 度">
             +1°
           </button>
@@ -115,11 +115,13 @@ export function ControlPanel({
   );
 }
 
+/** 编辑时显示草稿，不编辑时显示当前向度；不随度数重建，焦点才不会丢。 */
 function DegreeInput({ facingDeg, onEnter }: { facingDeg: number; onEnter: (deg: number) => void }) {
-  const [draft, setDraft] = useState(facingDeg.toFixed(1));
+  const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
 
-  const commit = () => {
+  const commit = (keepEditing: boolean) => {
+    if (draft === null) return;
     const text = draft.trim().replace(/°$/, "");
     const value = Number(text);
     if (text === "" || !Number.isFinite(value) || value < 0 || value > 360) {
@@ -127,6 +129,7 @@ function DegreeInput({ facingDeg, onEnter }: { facingDeg: number; onEnter: (deg:
       return;
     }
     setInvalid(false);
+    if (!keepEditing) setDraft(null);
     if (Math.abs(normalize(value) - facingDeg) > 0.01) onEnter(normalize(value));
   };
 
@@ -138,7 +141,7 @@ function DegreeInput({ facingDeg, onEnter }: { facingDeg: number; onEnter: (deg:
         inputMode="decimal"
         enterKeyHint="go"
         autoComplete="off"
-        value={draft}
+        value={draft ?? facingDeg.toFixed(1)}
         aria-invalid={invalid}
         aria-describedby={invalid ? "facing-input-error" : undefined}
         onChange={(e) => {
@@ -146,9 +149,9 @@ function DegreeInput({ facingDeg, onEnter }: { facingDeg: number; onEnter: (deg:
           setInvalid(false);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
+          if (e.key === "Enter") commit(true);
         }}
-        onBlur={commit}
+        onBlur={() => commit(false)}
         className="degree-input"
       />
       <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted">°</span>

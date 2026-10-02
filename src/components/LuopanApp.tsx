@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { formatDegree, normalize, roundTenth, shortestDelta } from "@/domain/angle";
-import { readingAt, zuoXiangText } from "@/domain/reading";
+import { readingAt, sittingFacingText } from "@/domain/reading";
 import {
   getCompassAvailability,
   useCompass,
@@ -11,24 +11,29 @@ import {
 import { isIOS, isStandalone, useInstallPrompt } from "@/hooks/useInstall";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { FLAT_LIMIT } from "@/lib/heading";
-import { loadItem, saveItem } from "@/lib/storage";
+import { loadFlag, loadItem, saveFlag, saveItem } from "@/lib/storage";
 import { CompassPanel } from "./CompassPanel";
 import { ControlPanel } from "./ControlPanel";
 import { DetailPanel } from "./DetailPanel";
 import { InstallHint } from "./InstallHint";
 import { Luopan } from "./luopan/Luopan";
-import { ReadingBar } from "./ReadingBar";
+import { ReadingBar, type CompassState } from "./ReadingBar";
 import { Toast, type ToastMessage } from "./Toast";
 
-type Mode = "manual" | "compass";
 type Tab = "controls" | "details";
+
+const TABS: readonly [Tab, string][] = [
+  ["controls", "操作"],
+  ["details", "详情"],
+];
 
 const DEFAULT_FACING = 180; // 坐子向午
 const ALIGN_MS = 300;
 /** 指南针读数的平滑时间常数。 */
 const SMOOTHING_MS = 120;
 
-interface Env {
+/** 只能在浏览器里取得的环境资料；静态导出的 HTML 里为 null。 */
+interface BrowserEnv {
   availability: CompassAvailability;
   ios: boolean;
   showIosHint: boolean;
@@ -36,27 +41,33 @@ interface Env {
 }
 
 export function LuopanApp() {
-  // 未取模的向度，盘面转 -rotation 度
-  const [rotation, setRotation] = useState(DEFAULT_FACING);
-  const rotationRef = useRef(DEFAULT_FACING);
-  const [mode, setMode] = useState<Mode>("manual");
-  const modeRef = useRef<Mode>("manual");
-  const [locked, setLocked] = useState(false);
-  const lockedRef = useRef(false);
+  // 未取模的向度，盘面转 -unwrappedFacing 度
+  const [unwrappedFacing, setUnwrappedFacing] = useState(DEFAULT_FACING);
+  const facingRef = useRef(DEFAULT_FACING);
+  const [compassState, setCompassStateValue] = useState<CompassState>("off");
+  const compassRef = useRef<CompassState>("off");
   const [tab, setTab] = useState<Tab>("controls");
   const [toast, setToast] = useState<ToastMessage | null>(null);
-  const [env, setEnv] = useState<Env | null>(null);
+  const [env, setEnv] = useState<BrowserEnv | null>(null);
   const [calibrationTip, setCalibrationTip] = useState(false);
   const animation = useRef<number | null>(null);
   /** 动画进行中的目标向度（已取模），连按时以它为起点。 */
   const animationTarget = useRef<number | null>(null);
   const lastSampleAt = useRef<number | null>(null);
+  /** 切换模式后，原本有焦点的按钮会消失，焦点要交给这个元素。 */
+  const focusAfterSwitch = useRef<string | null>(null);
   const install = useInstallPrompt();
 
   const apply = useCallback((r: number) => {
-    rotationRef.current = r;
-    setRotation(r);
+    facingRef.current = r;
+    setUnwrappedFacing(r);
   }, []);
+
+  const setCompassState = (next: CompassState) => {
+    compassRef.current = next;
+    setCompassStateValue(next);
+    lastSampleAt.current = null;
+  };
 
   const showToast = useCallback((text: string) => setToast({ id: Date.now(), text }), []);
   const clearToast = useCallback(() => setToast(null), []);
@@ -64,45 +75,42 @@ export function LuopanApp() {
   const compass = useCompass(
     useCallback(
       (heading: number) => {
-        if (modeRef.current !== "compass" || lockedRef.current) return;
+        if (compassRef.current !== "following") return;
         const now = performance.now();
         const prev = lastSampleAt.current;
         lastSampleAt.current = now;
         const k = prev === null ? 1 : 1 - Math.exp(-(now - prev) / SMOOTHING_MS);
-        const cur = rotationRef.current;
+        const cur = facingRef.current;
         apply(cur + shortestDelta(normalize(cur), heading) * k);
       },
       [apply],
     ),
   );
 
-  const setCompassMode = (next: Mode) => {
-    modeRef.current = next;
-    setMode(next);
-    lockedRef.current = false;
-    setLocked(false);
-    lastSampleAt.current = null;
-  };
-
-  const cancelAnimation = () => {
+  /** 停止对准动画；返回动画原本要到达的未取模向度。 */
+  const cancelAnimation = (): number => {
+    const cur = facingRef.current;
+    const target = animationTarget.current;
     if (animation.current !== null) cancelAnimationFrame(animation.current);
     animation.current = null;
     animationTarget.current = null;
+    return target === null ? cur : cur + shortestDelta(normalize(cur), target);
   };
 
-  /** 任何手动操作都先退出指南针模式。 */
-  const takeManual = () => {
-    cancelAnimation();
-    if (modeRef.current === "compass") {
+  /** 任何手动操作都先退出指南针模式；返回操作应当接着的向度。 */
+  const takeManual = (): number => {
+    const base = cancelAnimation();
+    if (compassRef.current !== "off") {
       compass.stop();
-      setCompassMode("manual");
+      setCompassState("off");
       showToast("已退出指南针模式");
     }
+    return base;
   };
 
   const alignTo = (target: number, animate = true) => {
     takeManual();
-    const from = rotationRef.current;
+    const from = facingRef.current;
     const to = from + shortestDelta(normalize(from), target);
     if (!animate || env?.reducedMotion || Math.abs(to - from) < 0.05) {
       apply(to);
@@ -120,41 +128,39 @@ export function LuopanApp() {
   };
 
   const nudge = (delta: number) => {
-    takeManual();
-    apply(rotationRef.current + delta);
+    apply(takeManual() + delta);
   };
 
   const jumpMountain = (dir: 1 | -1) => {
-    const r = readingAt(animationTarget.current ?? rotationRef.current);
+    const r = readingAt(animationTarget.current ?? facingRef.current);
     alignTo(normalize(r.facing.center + dir * 15));
   };
 
   const startCompass = () => {
     cancelAnimation();
-    setCompassMode("compass");
+    setCompassState("following");
     setTab("controls");
+    focusAfterSwitch.current = "exit-compass";
     compass.start();
-    if (loadItem("calibration-tip-seen") !== "1") {
+    if (!loadFlag("calibration-tip-seen")) {
       setCalibrationTip(true);
-      saveItem("calibration-tip-seen", "1");
+      saveFlag("calibration-tip-seen");
     }
   };
 
   const exitCompass = () => {
     compass.stop();
-    setCompassMode("manual");
+    setCompassState("off");
     setCalibrationTip(false);
+    focusAfterSwitch.current = "start-compass";
   };
 
   const toggleLock = () => {
-    const next = !lockedRef.current;
-    lockedRef.current = next;
-    setLocked(next);
-    lastSampleAt.current = null;
+    setCompassState(compassRef.current === "locked" ? "following" : "locked");
   };
 
   const share = async () => {
-    const r = readingAt(rotationRef.current);
+    const r = readingAt(facingRef.current);
     const url = new URL(window.location.href);
     url.search = "";
     url.hash = "";
@@ -164,7 +170,7 @@ export function LuopanApp() {
       try {
         await navigator.share({
           title: "风水罗盘",
-          text: `${zuoXiangText(r)}（向 ${formatDegree(r.facingDeg)}）`,
+          text: `${sittingFacingText(r)}（向 ${formatDegree(r.facingDeg)}）`,
           url: link,
         });
       } catch {
@@ -201,7 +207,7 @@ export function LuopanApp() {
     setEnv({
       availability: getCompassAvailability(),
       ios,
-      showIosHint: ios && !isStandalone() && loadItem("ios-hint-dismissed") !== "1",
+      showIosHint: ios && !isStandalone() && !loadFlag("ios-hint-dismissed"),
       reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     });
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -209,18 +215,28 @@ export function LuopanApp() {
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
     }
   }, []);
 
   // 只记住手动模式下的度数
   useEffect(() => {
-    if (mode !== "manual") return;
-    const id = window.setTimeout(() => saveItem("facing", roundTenth(rotation).toFixed(1)), 400);
+    if (compassState !== "off") return;
+    const id = window.setTimeout(() => saveItem("facing", roundTenth(unwrappedFacing).toFixed(1)), 400);
     return () => window.clearTimeout(id);
-  }, [rotation, mode]);
+  }, [unwrappedFacing, compassState]);
 
-  useWakeLock(mode === "compass");
+  // 按下的按钮随模式切换消失时，把焦点交给另一种模式里对应的按钮
+  useEffect(() => {
+    const id = focusAfterSwitch.current;
+    focusAfterSwitch.current = null;
+    if (id && (document.activeElement === null || document.activeElement === document.body)) {
+      // 不卷动：矮屏幕上卷到按钮会把上方的状态文字卷出画面
+      document.getElementById(id)?.focus({ preventScroll: true });
+    }
+  }, [compassState]);
+
+  useWakeLock(compassState !== "off");
 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -242,14 +258,26 @@ export function LuopanApp() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const reading = readingAt(rotation);
+  const reading = readingAt(unwrappedFacing);
   const status = compass.status;
-  const unreliable =
-    mode === "compass" && !locked && (status.kind !== "active" || status.tilt > FLAT_LIMIT);
+  const tilted = compassState === "following" && status.kind === "active" && status.tilt > FLAT_LIMIT;
+  const stale = compassState === "following" && (status.kind !== "active" || tilted);
 
-  const selectTab = (next: Tab) => {
+  const selectTab = (next: Tab, focus = false) => {
     setTab(next);
     saveItem("tab", next);
+    if (focus) document.getElementById(`tab-${next}`)?.focus();
+  };
+
+  // 分页之间用方向键切换；先 preventDefault，全局的方向键就不会转动盘面
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const index = TABS.findIndex(([key]) => key === tab);
+    const next =
+      e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : (index + (e.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+    selectTab(TABS[next][0], true);
   };
 
   return (
@@ -258,11 +286,12 @@ export function LuopanApp() {
 
       <div className="app-luopan">
         <Luopan
-          rotation={rotation}
-          label={`罗盘，当前${zuoXiangText(reading)}`}
+          unwrappedFacing={unwrappedFacing}
+          facingDeg={reading.facingDeg}
+          valueText={`${sittingFacingText(reading)}，向 ${formatDegree(reading.facingDeg)}`}
           springyNeedle={!(env?.reducedMotion ?? true)}
           onDragStart={takeManual}
-          onDrag={(delta) => apply(rotationRef.current - delta)}
+          onDrag={(delta) => apply(facingRef.current - delta)}
           onAlign={(center) => alignTo(center)}
           onWheelStep={(steps, fine) => nudge(steps * (fine ? 0.1 : 1))}
         />
@@ -271,8 +300,9 @@ export function LuopanApp() {
       <div className="app-reading">
         <ReadingBar
           reading={reading}
-          compass={mode === "compass" ? (locked ? "locked" : "following") : "off"}
-          unreliable={unreliable}
+          compass={compassState}
+          stale={stale}
+          tilted={tilted}
           onToggleLock={toggleLock}
           onShare={() => void share()}
         />
@@ -280,12 +310,7 @@ export function LuopanApp() {
 
       <section className="app-panel" aria-label="操作与详情">
         <div role="tablist" aria-label="面板" className="tabs">
-          {(
-            [
-              ["controls", "操作"],
-              ["details", "详情"],
-            ] as const
-          ).map(([key, label]) => (
+          {TABS.map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -293,7 +318,9 @@ export function LuopanApp() {
               id={`tab-${key}`}
               aria-selected={tab === key}
               aria-controls={`tabpanel-${key}`}
+              tabIndex={tab === key ? 0 : -1}
               onClick={() => selectTab(key)}
+              onKeyDown={onTabKeyDown}
               className="tab"
             >
               {label}
@@ -302,41 +329,50 @@ export function LuopanApp() {
         </div>
         <div
           role="tabpanel"
-          id={`tabpanel-${tab}`}
-          aria-labelledby={`tab-${tab}`}
+          id="tabpanel-controls"
+          aria-labelledby="tab-controls"
+          hidden={tab !== "controls"}
           className="tabpanel"
         >
-          {tab === "details" ? (
-            <DetailPanel sitting={reading.sitting} facing={reading.facing} />
-          ) : mode === "compass" ? (
-            <CompassPanel
-              status={status}
-              locked={locked}
-              ios={env?.ios ?? false}
-              showCalibrationTip={calibrationTip}
-              onToggleLock={toggleLock}
-              onRetry={startCompass}
-              onExit={exitCompass}
-            />
-          ) : (
-            <ControlPanel
-              facingDeg={reading.facingDeg}
-              availability={env?.availability ?? null}
-              install={install}
-              onDirection={(center) => alignTo(center)}
-              onSlide={(deg) => alignTo(deg, false)}
-              onNudge={nudge}
-              onEnter={(deg) => alignTo(deg)}
-              onStartCompass={startCompass}
-            />
-          )}
+          {tab === "controls" &&
+            (compassState !== "off" ? (
+              <CompassPanel
+                status={status}
+                locked={compassState === "locked"}
+                ios={env?.ios ?? false}
+                showCalibrationTip={calibrationTip}
+                onToggleLock={toggleLock}
+                onRetry={startCompass}
+                onExit={exitCompass}
+              />
+            ) : (
+              <ControlPanel
+                facingDeg={reading.facingDeg}
+                availability={env?.availability ?? null}
+                install={install}
+                onDirection={(center) => alignTo(center)}
+                onSlide={(deg) => alignTo(deg, false)}
+                onNudge={nudge}
+                onEnter={(deg) => alignTo(deg)}
+                onStartCompass={startCompass}
+              />
+            ))}
+        </div>
+        <div
+          role="tabpanel"
+          id="tabpanel-details"
+          aria-labelledby="tab-details"
+          hidden={tab !== "details"}
+          className="tabpanel"
+        >
+          {tab === "details" && <DetailPanel sitting={reading.sitting} facing={reading.facing} />}
         </div>
       </section>
 
       {env?.showIosHint && (
         <InstallHint
           onClose={() => {
-            saveItem("ios-hint-dismissed", "1");
+            saveFlag("ios-hint-dismissed");
             setEnv({ ...env, showIosHint: false });
           }}
         />

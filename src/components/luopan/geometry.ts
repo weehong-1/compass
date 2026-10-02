@@ -1,4 +1,6 @@
 import { normalize } from "@/domain/angle";
+import { mountainAt } from "@/domain/mountains";
+import { directionAt, palaceAt } from "@/domain/trigrams";
 
 /** SVG viewBox 为 -500..500，罗盘中心在原点。以下半径都以 viewBox 单位计。 */
 export const VIEW = 1000;
@@ -36,22 +38,15 @@ export function sectorPath(r0: number, r1: number, a0: number, a1: number): stri
   ].join(" ");
 }
 
-export type Ring = "trigram" | "direction" | "mountain";
-
 /**
- * 点在盘面上的哪一层、哪一格中线。
+ * 点中的那一格（宫、八方方位或山）的中线度数。
  * screenAngle 为点在画面上的角度（自上方顺时针），facing 为当前向度。
- * 返回该格中线的度数；点在刻度层、天池或盘外时返回 null。
+ * 点在刻度层、天池或盘外时返回 null。
  */
-export function hitTest(
-  radius: number,
-  screenAngle: number,
-  facing: number,
-): { ring: Ring; center: number } | null {
+export function centerAtPoint(radius: number, screenAngle: number, facing: number): number | null {
   const dialAngle = normalize(screenAngle + facing);
-  const snap = (span: number) => (Math.floor(normalize(dialAngle + span / 2) / span) * span) % 360;
-  if (radius >= R.poolRim && radius < R.trigramOuter) return { ring: "trigram", center: snap(45) };
-  if (radius >= R.trigramOuter && radius < R.directionOuter) return { ring: "direction", center: snap(45) };
-  if (radius >= R.directionOuter && radius < R.mountainOuter) return { ring: "mountain", center: snap(15) };
+  if (radius >= R.poolRim && radius < R.trigramOuter) return palaceAt(dialAngle).center;
+  if (radius >= R.trigramOuter && radius < R.directionOuter) return directionAt(dialAngle).center;
+  if (radius >= R.directionOuter && radius < R.mountainOuter) return mountainAt(dialAngle).center;
   return null;
 }

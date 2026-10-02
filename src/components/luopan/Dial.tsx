@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { MOUNTAINS } from "@/domain/mountains";
+import { MOUNTAINS, neighborMountain } from "@/domain/mountains";
 import { DIRECTIONS, PALACES } from "@/domain/trigrams";
 import { R, polar, sectorPath } from "./geometry";
 import { CINNABAR, ELEMENT_FILL, INK } from "./palette";
@@ -86,10 +86,10 @@ function ScaleRing() {
 function MountainRing() {
   let dividers = "";
   let palaceLines = "";
-  for (let k = 0; k < 24; k++) {
-    const b = 7.5 + k * 15;
-    const line = radialLine(R.directionOuter, R.mountainOuter, b);
-    if (k % 3 === 1) palaceLines += line;
+  for (const m of MOUNTAINS) {
+    // 每山顺时针一侧的界线；与下一山不同宫时就是宫界
+    const line = radialLine(R.directionOuter, R.mountainOuter, m.center + 7.5);
+    if (neighborMountain(m, 1).palace !== m.palace) palaceLines += line;
     else dividers += line;
   }
   return (

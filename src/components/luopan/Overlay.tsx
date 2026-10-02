@@ -21,7 +21,7 @@ export const Overlay = memo(function Overlay() {
 
       <circle r={R.pool} fill="url(#glass)" />
 
-      {/* 白色衬线让红线压在墨黑的水山上也看得清 */}
+      {/* 白色衬线让天心十道压在墨黑的水山上也看得清 */}
       <g strokeLinecap="round">
         <path d="M0 -462V462M-488 0H488" stroke="rgba(255,250,235,0.55)" strokeWidth={6.5} />
         <path d="M0 -462V462M-488 0H488" stroke={THREAD} strokeWidth={2.8} />

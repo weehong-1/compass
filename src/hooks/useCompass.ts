@@ -111,10 +111,10 @@ export function useCompass(onHeading: (heading: number) => void) {
 
   const start = useCallback(() => {
     detach();
-    const DOE = window.DeviceOrientationEvent as PermissionedOrientationEvent | undefined;
-    if (typeof DOE?.requestPermission === "function") {
+    const orientationEvent = window.DeviceOrientationEvent as PermissionedOrientationEvent | undefined;
+    if (typeof orientationEvent?.requestPermission === "function") {
       setStatus({ kind: "requesting" });
-      DOE.requestPermission()
+      orientationEvent.requestPermission()
         .then((result) => (result === "granted" ? listen() : setStatus({ kind: "denied" })))
         .catch(() => setStatus({ kind: "denied" }));
     } else {

@@ -31,7 +31,8 @@ export function CompassPanel({
             aria-pressed={locked}
             className={`lock-button ${locked ? "lock-button-on" : ""}`}
           >
-            {locked ? "🔓 解锁，继续跟随" : "🔒 锁定读数"}
+            <span aria-hidden="true">{locked ? "🔓 " : "🔒 "}</span>
+            {locked ? "解锁，继续跟随" : "锁定读数"}
           </button>
           <ul className="space-y-2 text-sm">
             <FlatRow tilt={status.tilt} />
@@ -81,7 +82,7 @@ export function CompassPanel({
         </div>
       )}
 
-      <button type="button" onClick={onExit} className="secondary-button w-full">
+      <button type="button" id="exit-compass" onClick={onExit} className="secondary-button w-full">
         退出指南针
       </button>
     </div>

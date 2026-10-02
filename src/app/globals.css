@@ -77,7 +77,8 @@ body {
   justify-items: center;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
     env(safe-area-inset-left);
-  --luopan-size: min(calc(100vw - 32px), calc(100dvh - 290px), 560px);
+  /* 宽度为屏宽减两边 16px；只有在矮得连读数和分页都放不下时才缩小 */
+  --luopan-size: min(calc(100vw - 32px), calc(100dvh - 210px), 560px);
 }
 
 .app-luopan {
@@ -347,6 +348,12 @@ input[type="range"] {
 
 .luopan:active {
   cursor: grabbing;
+}
+
+.luopan:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 @keyframes toast-in {

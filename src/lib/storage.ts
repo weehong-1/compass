@@ -2,7 +2,10 @@
 
 const PREFIX = "luopan:";
 
-export function loadItem(key: string): string | null {
+/** 存在本机的项目：手动模式的向度、所选分页，以及只需显示一次的提示。 */
+export type StorageKey = "facing" | "tab" | "ios-hint-dismissed" | "calibration-tip-seen";
+
+export function loadItem(key: StorageKey): string | null {
   try {
     return window.localStorage.getItem(PREFIX + key);
   } catch {
@@ -10,10 +13,18 @@ export function loadItem(key: string): string | null {
   }
 }
 
-export function saveItem(key: string, value: string): void {
+export function saveItem(key: StorageKey, value: string): void {
   try {
     window.localStorage.setItem(PREFIX + key, value);
   } catch {
     // 存不了就算了
   }
+}
+
+export function loadFlag(key: StorageKey): boolean {
+  return loadItem(key) === "1";
+}
+
+export function saveFlag(key: StorageKey): void {
+  saveItem(key, "1");
 }

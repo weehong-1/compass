@@ -7,7 +7,7 @@ import {
   type Element,
 } from "./mountains";
 import { DIRECTIONS, PALACES, directionAt, palaceAt } from "./trigrams";
-import { readingAt, voidText, zuoXiangText } from "./reading";
+import { readingAt, sittingFacingParts, sittingFacingText, voidText } from "./reading";
 
 const names = (ms: readonly { name: string }[]) => ms.map((m) => m.name).join("");
 
@@ -70,11 +70,11 @@ describe("二十四山", () => {
     const branches = MOUNTAINS.filter((m) => m.kind === "branch");
     expect(names(branches)).toBe("子丑寅卯辰巳午未申酉戌亥");
     expect(branches.map((m) => m.zodiac).join("")).toBe("鼠牛虎兔龙蛇马羊猴鸡狗猪");
-    expect(MOUNTAINS[0].shichen).toEqual({ name: "子时", start: "23:00", end: "01:00" });
-    expect(mountainAt(180).shichen).toEqual({ name: "午时", start: "11:00", end: "13:00" });
+    expect(MOUNTAINS[0].doubleHour).toEqual({ name: "子时", start: "23:00", end: "01:00" });
+    expect(mountainAt(180).doubleHour).toEqual({ name: "午时", start: "11:00", end: "13:00" });
     for (const m of MOUNTAINS.filter((m) => m.kind !== "branch")) {
       expect(m.zodiac).toBeUndefined();
-      expect(m.shichen).toBeUndefined();
+      expect(m.doubleHour).toBeUndefined();
     }
   });
 
@@ -121,7 +121,7 @@ describe("后天八卦、宫、八方", () => {
 describe("读数", () => {
   const read = (deg: number) => {
     const r = readingAt(deg);
-    return { text: zuoXiangText(r), void: voidText(r) };
+    return { text: sittingFacingText(r), void: voidText(r) };
   };
 
   it("reads 正向 within 3° of the 中线", () => {
@@ -153,10 +153,15 @@ describe("读数", () => {
     const r = readingAt(359.96);
     expect(r.facingDeg).toBe(0);
     expect(r.sittingDeg).toBe(180);
-    expect(zuoXiangText(r)).toBe("坐午向子");
-    expect(zuoXiangText(readingAt(4.5))).toBe("坐午向子兼丁癸");
+    expect(sittingFacingText(r)).toBe("坐午向子");
+    expect(sittingFacingText(readingAt(4.5))).toBe("坐午向子兼丁癸");
     expect(readingAt(4.5).offset).toBe(4.5);
     expect(readingAt(355.5).offset).toBe(-4.5);
+  });
+
+  it("splits the 坐向 text so the 兼 part can be styled", () => {
+    expect(sittingFacingParts(readingAt(180))).toEqual({ base: "坐子向午", jian: null });
+    expect(sittingFacingParts(readingAt(184.5))).toEqual({ base: "坐子向午", jian: "兼癸丁" });
   });
 
   it("classifies on the displayed tenth, not the raw float", () => {

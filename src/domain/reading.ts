@@ -70,10 +70,18 @@ export function readingAt(facingDegInput: number): Reading {
   return { facingDeg, sittingDeg, facing, sitting, offset, jian, void: voidLine };
 }
 
+/** 坐向文字拆成两段：「坐子向午」与「兼癸丁」（正向时 jian 为 null）。 */
+export function sittingFacingParts(r: Reading): { base: string; jian: string | null } {
+  return {
+    base: `坐${r.sitting.name}向${r.facing.name}`,
+    jian: r.jian ? `兼${r.jian.sitting.name}${r.jian.facing.name}` : null,
+  };
+}
+
 /** 坐向文字，例如「坐子向午」「坐子向午兼癸丁」。 */
-export function zuoXiangText(r: Reading): string {
-  const base = `坐${r.sitting.name}向${r.facing.name}`;
-  return r.jian ? `${base}兼${r.jian.sitting.name}${r.jian.facing.name}` : base;
+export function sittingFacingText(r: Reading): string {
+  const { base, jian } = sittingFacingParts(r);
+  return base + (jian ?? "");
 }
 
 /** 空亡提示文字，例如「小空亡（子癸之交）」；没有空亡时为 null。 */

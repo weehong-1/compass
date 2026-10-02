@@ -46,7 +46,7 @@ function MountainCard({ role, mountain: m }: { role: "坐" | "向"; mountain: Mo
         <dd className="flex items-center gap-2">
           <TrigramGlyph trigram={palace.trigram} />
           <span>
-            {palace.trigram.name}宫 · 洛书{palace.trigram.luoshuName}
+            {palace.trigram.name}卦 · 洛书{palace.trigram.luoshuName}
           </span>
         </dd>
         <dt>五行</dt>
@@ -68,7 +68,7 @@ function MountainCard({ role, mountain: m }: { role: "坐" | "向"; mountain: Mo
         <dd>{m.zodiac ?? "—"}</dd>
         <dt>时辰</dt>
         <dd className="tabular-nums">
-          {m.shichen ? `${m.shichen.name} ${m.shichen.start}–${m.shichen.end}` : "—"}
+          {m.doubleHour ? `${m.doubleHour.name} ${m.doubleHour.start}–${m.doubleHour.end}` : "—"}
         </dd>
       </dl>
     </article>

@@ -24,6 +24,8 @@ for (const file of walk(OUT).sort()) {
   urls.push(path === "/index.html" ? "/" : path);
 }
 const version = hash.digest("hex").slice(0, 12);
+// 信号差时等网络最多这么久，就改用离线缓存的页面
+const NAVIGATION_TIMEOUT_MS = 2500;
 
 const sw = `// 由 scripts/build-sw.mjs 生成，勿手改
 const CACHE = "luopan-${version}";
@@ -50,18 +52,26 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // 页面：有网络时取最新版，离线时用缓存（分享链接带 ?d= 也对得上）
+  // 页面：先试网络取最新版；离线或 ${NAVIGATION_TIMEOUT_MS / 1000} 秒内没回应就用缓存（分享链接带 ?d= 也对得上）
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match(request, { ignoreSearch: true }).then((hit) => hit || caches.match("/")),
-      ),
+      (async () => {
+        const cached = (await caches.match(request, { ignoreSearch: true })) || (await caches.match("/"));
+        const network = fetch(request);
+        if (!cached) return network;
+        const timeout = new Promise((resolve) => setTimeout(() => resolve(cached), ${NAVIGATION_TIMEOUT_MS}));
+        try {
+          return await Promise.race([network, timeout]);
+        } catch {
+          return cached;
+        }
+      })(),
     );
     return;
   }
 
-  // 静态资源：文件名带 hash，缓存优先
-  event.respondWith(caches.match(request).then((hit) => hit || fetch(request)));
+  // 静态资源：文件名带 hash，缓存优先；图标网址带 ?版本号，比对时忽略查询字串
+  event.respondWith(caches.match(request, { ignoreSearch: true }).then((hit) => hit || fetch(request)));
 });
 `;
 

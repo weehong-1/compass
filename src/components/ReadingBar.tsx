@@ -1,27 +1,29 @@
 import { formatDegree } from "@/domain/angle";
-import { voidText, type Reading } from "@/domain/reading";
+import { sittingFacingParts, voidText, type Reading } from "@/domain/reading";
+import { ShareIcon } from "./icons";
+
+/** 指南针模式的状态：关闭、跟随实际方位、已锁定。 */
+export type CompassState = "off" | "following" | "locked";
 
 interface Props {
   reading: Reading;
-  compass: "off" | "following" | "locked";
-  /** 指南针模式下手机没放平，读数不可靠。 */
-  unreliable: boolean;
+  compass: CompassState;
+  /** 指南针模式下读数尚未可靠（还没收到方位，或手机没放平），读数变灰。 */
+  stale: boolean;
+  /** 手机倾斜超过限度，要提示平放。 */
+  tilted: boolean;
   onToggleLock: () => void;
   onShare: () => void;
 }
 
-export function ReadingBar({ reading, compass, unreliable, onToggleLock, onShare }: Props) {
+export function ReadingBar({ reading, compass, stale, tilted, onToggleLock, onShare }: Props) {
   const warning = voidText(reading);
-  const base = `坐${reading.sitting.name}向${reading.facing.name}`;
-  const jian = reading.jian ? `兼${reading.jian.sitting.name}${reading.jian.facing.name}` : null;
+  const { base, jian } = sittingFacingParts(reading);
 
   return (
-    <section
-      aria-label="读数"
-      className={`reading w-full transition-opacity ${unreliable ? "opacity-45" : ""}`}
-    >
+    <section aria-label="读数" className="reading w-full">
       <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 transition-opacity ${stale ? "opacity-45" : ""}`}>
           <p aria-live="polite" className="font-serif text-[1.65rem] leading-tight font-bold tracking-wide">
             {base}
             {jian && <span className="text-accent">{jian}</span>}
@@ -61,20 +63,10 @@ export function ReadingBar({ reading, compass, unreliable, onToggleLock, onShare
           </button>
         </div>
       </div>
-      <p role="status" className="mt-1 min-h-6 text-sm font-semibold text-danger">
-        {warning && <>⚠ {warning}</>}
-        {!warning && unreliable && <span className="text-warn">请平放手机</span>}
+      <p role="status" className="mt-1 flex min-h-6 flex-wrap gap-x-3 text-sm font-semibold">
+        {warning && <span className="text-danger">⚠ {warning}</span>}
+        {tilted && <span className="text-warn">请平放手机</span>}
       </p>
     </section>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" />
-      <path d="m7 8 5-5 5 5" />
-      <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
-    </svg>
   );
 }

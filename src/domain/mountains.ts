@@ -31,8 +31,8 @@ export const YIN_YANG_NAMES: Record<YinYang, string> = {
   yang: "阳",
 };
 
-/** 时辰：只有地支山才有。 */
-export interface Shichen {
+/** 时辰（一个时辰为两小时）：只有地支山才有。 */
+export interface DoubleHour {
   name: string;
   start: string;
   end: string;
@@ -54,7 +54,7 @@ export interface Mountain {
   solarTerm: string;
   /** 生肖，只有地支山才有。 */
   zodiac?: string;
-  shichen?: Shichen;
+  doubleHour?: DoubleHour;
 }
 
 type Row = [
@@ -64,7 +64,7 @@ type Row = [
   yinYang: YinYang,
   solarTerm: string,
   zodiac?: string,
-  shichenStart?: string,
+  doubleHourStart?: string,
 ];
 
 // 自子山起顺时针排列
@@ -104,7 +104,7 @@ function hourAfter(start: string): string {
 }
 
 export const MOUNTAINS: readonly Mountain[] = ROWS.map(
-  ([name, kind, element, yinYang, solarTerm, zodiac, shichenStart], index) => {
+  ([name, kind, element, yinYang, solarTerm, zodiac, doubleHourStart], index) => {
     const posInPalaceOrder = (index + 1) % 24;
     return {
       index,
@@ -116,13 +116,13 @@ export const MOUNTAINS: readonly Mountain[] = ROWS.map(
       element,
       yinYang,
       solarTerm,
-      ...(zodiac && shichenStart
+      ...(zodiac && doubleHourStart
         ? {
             zodiac,
-            shichen: {
+            doubleHour: {
               name: `${name}时`,
-              start: shichenStart,
-              end: hourAfter(shichenStart),
+              start: doubleHourStart,
+              end: hourAfter(doubleHourStart),
             },
           }
         : {}),
