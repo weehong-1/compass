@@ -51,7 +51,7 @@ npm start            # 在 http://localhost:3000 预览 out/
 
 ## 部署
 
-部署到 Vercel：在 Vercel 网站上「Import Project」导入这个 GitHub repo，设置都用默认值。之后每次 push 到 `main` 就会自动部署。整个应用是静态文件，也能放到任何支持 HTTPS 的静态主机上（上传 `out/`）。
+部署到 Vercel：在 Vercel 网站上「Import Project」导入这个 GitHub repo，设置都用默认值。之后每次 push 到 `main` 就会自动部署。`vercel.json` 把 Vercel 当成纯静态主机，直接发布 `out/`。不能用 Next.js 预设：它在 `next build` 里就收走产物，之后才生成的 `sw.js` 不会被部署，离线功能就失效了。整个应用是静态文件，也能放到任何支持 HTTPS 的静态主机上（上传 `out/`）。
 
 ## 结构
 
