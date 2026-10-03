@@ -1,5 +1,7 @@
 import type { CompassStatus } from "@/hooks/useCompass";
 import { FLAT_LIMIT } from "@/lib/heading";
+import { DirectionGrid } from "./DirectionGrid";
+import { CompassIcon } from "./icons";
 
 interface Props {
   status: CompassStatus;
@@ -7,6 +9,8 @@ interface Props {
   ios: boolean;
   /** Android 不提供精度：只在第一次开启时提醒校准方法。 */
   showCalibrationTip: boolean;
+  seek: number | null;
+  onSeek: (index: number) => void;
   onToggleLock: () => void;
   onRetry: () => void;
   onExit: () => void;
@@ -17,35 +21,14 @@ export function CompassPanel({
   locked,
   ios,
   showCalibrationTip,
+  seek,
+  onSeek,
   onToggleLock,
   onRetry,
   onExit,
 }: Props) {
   return (
     <div className="space-y-4">
-      {status.kind === "active" && (
-        <>
-          <button
-            type="button"
-            onClick={onToggleLock}
-            aria-pressed={locked}
-            className={`lock-button ${locked ? "lock-button-on" : ""}`}
-          >
-            <span aria-hidden="true">{locked ? "🔓 " : "🔒 "}</span>
-            {locked ? "解锁，继续跟随" : "锁定读数"}
-          </button>
-          <ul className="space-y-2 text-sm">
-            <FlatRow tilt={status.tilt} />
-            <AccuracyRow accuracy={status.accuracy} />
-          </ul>
-          {showCalibrationTip && status.accuracy === null && (
-            <p className="rounded-lg bg-surface-2 p-3 text-sm text-muted">
-              读数不稳或明显不对时，请拿着手机在空中画几次「8」字来校准，并远离铁器、磁铁和电器。
-            </p>
-          )}
-        </>
-      )}
-
       {(status.kind === "off" || status.kind === "requesting") && (
         <p className="text-sm text-muted">正在请求使用方位传感器……</p>
       )}
@@ -59,7 +42,7 @@ export function CompassPanel({
           <p className="font-semibold text-danger">没有获得使用方位传感器的权限。</p>
           {ios ? (
             <p className="text-muted">
-              请完全关闭 Safari（或主屏幕上的罗盘）后重新打开，再按「开启指南针」，并在弹窗中选「允许」。
+              请完全关闭 Safari（或主屏幕上的罗盘）后重新打开，再按「开启指南针」或任一方位，并在弹窗中选「允许」。
             </p>
           ) : (
             <p className="text-muted">
@@ -82,9 +65,39 @@ export function CompassPanel({
         </div>
       )}
 
-      <button type="button" id="exit-compass" onClick={onExit} className="secondary-button w-full">
-        退出指南针
-      </button>
+      <DirectionGrid
+        seek={seek}
+        onSeek={onSeek}
+        center={
+          <button type="button" id="exit-compass" onClick={onExit} className="grid-button grid-button-exit">
+            <CompassIcon />
+            <span>退出指南针</span>
+          </button>
+        }
+      />
+
+      {status.kind === "active" && (
+        <>
+          <button
+            type="button"
+            onClick={onToggleLock}
+            aria-pressed={locked}
+            className={`lock-button ${locked ? "lock-button-on" : ""}`}
+          >
+            <span aria-hidden="true">{locked ? "🔓 " : "🔒 "}</span>
+            {locked ? "解锁，继续跟随" : "锁定读数"}
+          </button>
+          <ul className="space-y-2 text-sm">
+            <FlatRow tilt={status.tilt} />
+            <AccuracyRow accuracy={status.accuracy} />
+          </ul>
+          {showCalibrationTip && status.accuracy === null && (
+            <p className="rounded-lg bg-surface-2 p-3 text-sm text-muted">
+              读数不稳或明显不对时，请拿着手机在空中画几次「8」字来校准，并远离铁器、磁铁和电器。
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

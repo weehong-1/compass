@@ -6,6 +6,7 @@ import { Base } from "./Base";
 import { Dial } from "./Dial";
 import { Needle } from "./Needle";
 import { Overlay } from "./Overlay";
+import { SeekMarker } from "./SeekMarker";
 import { VIEW, centerAtPoint } from "./geometry";
 
 const TAP_SLOP_PX = 8;
@@ -20,6 +21,8 @@ export interface LuopanProps {
   valueText: string;
   /** 磁针有惯性地跟上盘面；减少动态效果时关掉。 */
   springyNeedle: boolean;
+  /** 寻方目标方位的中线；没有在寻方时为 null。 */
+  seekCenter: number | null;
   onDragStart: () => void;
   /** 手指在画面上顺时针转了 delta 度。 */
   onDrag: (delta: number) => void;
@@ -42,6 +45,7 @@ export function Luopan({
   facingDeg,
   valueText,
   springyNeedle,
+  seekCenter,
   onDragStart,
   onDrag,
   onAlign,
@@ -151,6 +155,7 @@ export function Luopan({
       <Base />
       <div className="absolute inset-0 will-change-transform" style={{ transform }}>
         <Dial />
+        {seekCenter !== null && <SeekMarker center={seekCenter} />}
       </div>
       <div
         className="pointer-events-none absolute inset-0 will-change-transform"

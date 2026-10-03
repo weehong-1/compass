@@ -11,3 +11,5 @@ export const ELEMENT_FILL: Record<Element, { fill: string; ink: string }> = {
 
 export const CINNABAR = "#c62d1f";
 export const INK = "#1e1a14";
+/** 寻方的标记色：盘面上没有蓝色，一眼就能和盘面本身的内容分开。 */
+export const SEEK_BLUE = "#1765d8";

@@ -1,5 +1,6 @@
 import { formatDegree } from "@/domain/angle";
 import { sittingFacingParts, voidText, type Reading } from "@/domain/reading";
+import { seekText, type SeekGuide } from "@/domain/seek";
 import { ShareIcon } from "./icons";
 
 /** 指南针模式的状态：关闭、跟随实际方位、已锁定。 */
@@ -12,11 +13,13 @@ interface Props {
   stale: boolean;
   /** 手机倾斜超过限度，要提示平放。 */
   tilted: boolean;
+  /** 指南针模式下寻方的指引；没有在寻方时为 null。 */
+  guide: SeekGuide | null;
   onToggleLock: () => void;
   onShare: () => void;
 }
 
-export function ReadingBar({ reading, compass, stale, tilted, onToggleLock, onShare }: Props) {
+export function ReadingBar({ reading, compass, stale, tilted, guide, onToggleLock, onShare }: Props) {
   const warning = voidText(reading);
   const { base, jian } = sittingFacingParts(reading);
 
@@ -63,7 +66,19 @@ export function ReadingBar({ reading, compass, stale, tilted, onToggleLock, onSh
           </button>
         </div>
       </div>
+      {guide && (
+        // 指引随手机转动不停变化，不放进 role=status，免得读屏软件念个不停
+        <p
+          className={`mt-2 inline-flex rounded-full px-3 py-1 font-semibold tabular-nums transition-opacity ${
+            guide.onTarget ? "bg-ok-soft text-ok" : "bg-seek-soft text-seek"
+          } ${stale ? "opacity-45" : ""}`}
+        >
+          {guide.onTarget && <span aria-hidden="true">✓&nbsp;</span>}
+          {seekText(guide)}
+        </p>
+      )}
       <p role="status" className="mt-1 flex min-h-6 flex-wrap gap-x-3 text-sm font-semibold">
+        {guide?.onTarget && <span className="sr-only">{seekText(guide)}</span>}
         {warning && <span className="text-danger">⚠ {warning}</span>}
         {tilted && <span className="text-warn">请平放手机</span>}
       </p>

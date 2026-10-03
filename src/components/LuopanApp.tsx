@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { formatDegree, normalize, roundTenth, shortestDelta } from "@/domain/angle";
 import { readingAt, sittingFacingText } from "@/domain/reading";
+import { seekGuide } from "@/domain/seek";
+import { DIRECTIONS } from "@/domain/trigrams";
 import {
   getCompassAvailability,
   useCompass,
@@ -46,6 +48,8 @@ export function LuopanApp() {
   const facingRef = useRef(DEFAULT_FACING);
   const [compassState, setCompassStateValue] = useState<CompassState>("off");
   const compassRef = useRef<CompassState>("off");
+  /** 正在寻的八方方位；只在指南针模式下存在。 */
+  const [seek, setSeek] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("controls");
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [env, setEnv] = useState<BrowserEnv | null>(null);
@@ -67,6 +71,7 @@ export function LuopanApp() {
     compassRef.current = next;
     setCompassStateValue(next);
     lastSampleAt.current = null;
+    if (next === "off") setSeek(null);
   };
 
   const showToast = useCallback((text: string) => setToast({ id: Date.now(), text }), []);
@@ -146,6 +151,20 @@ export function LuopanApp() {
       setCalibrationTip(true);
       saveFlag("calibration-tip-seen");
     }
+  };
+
+  /** 寻方：还没开指南针就先开（iOS 的权限请求必须在这次点按里发出）；再按同一方位即取消。 */
+  const seekDirection = (index: number) => {
+    if (compassRef.current === "off") {
+      startCompass();
+      focusAfterSwitch.current = `seek-${index}`;
+      setSeek(index);
+      return;
+    }
+    const next = seek === index ? null : index;
+    setSeek(next);
+    // 选了新方位就是要看实际方位，锁定的读数不再有用
+    if (next !== null && compassRef.current === "locked") setCompassState("following");
   };
 
   const exitCompass = () => {
@@ -262,6 +281,8 @@ export function LuopanApp() {
   const status = compass.status;
   const tilted = compassState === "following" && status.kind === "active" && status.tilt > FLAT_LIMIT;
   const stale = compassState === "following" && (status.kind !== "active" || tilted);
+  // 收到方位之前不标，免得把盘面上的方位当成实际方位
+  const seeking = seek !== null && status.kind === "active" ? seek : null;
 
   const selectTab = (next: Tab, focus = false) => {
     setTab(next);
@@ -290,6 +311,7 @@ export function LuopanApp() {
           facingDeg={reading.facingDeg}
           valueText={`${sittingFacingText(reading)}，向 ${formatDegree(reading.facingDeg)}`}
           springyNeedle={!(env?.reducedMotion ?? true)}
+          seekCenter={seeking === null ? null : DIRECTIONS[seeking].center}
           onDragStart={takeManual}
           onDrag={(delta) => apply(facingRef.current - delta)}
           onAlign={(center) => alignTo(center)}
@@ -303,6 +325,7 @@ export function LuopanApp() {
           compass={compassState}
           stale={stale}
           tilted={tilted}
+          guide={seeking === null ? null : seekGuide(reading.facingDeg, seeking)}
           onToggleLock={toggleLock}
           onShare={() => void share()}
         />
@@ -341,6 +364,8 @@ export function LuopanApp() {
                 locked={compassState === "locked"}
                 ios={env?.ios ?? false}
                 showCalibrationTip={calibrationTip}
+                seek={seek}
+                onSeek={seekDirection}
                 onToggleLock={toggleLock}
                 onRetry={startCompass}
                 onExit={exitCompass}
@@ -350,7 +375,8 @@ export function LuopanApp() {
                 facingDeg={reading.facingDeg}
                 availability={env?.availability ?? null}
                 install={install}
-                onDirection={(center) => alignTo(center)}
+                seek={seek}
+                onSeek={seekDirection}
                 onSlide={(deg) => alignTo(deg, false)}
                 onNudge={nudge}
                 onEnter={(deg) => alignTo(deg)}

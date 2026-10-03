@@ -75,12 +75,8 @@ test("dragging rotates the dial with the finger", async ({ page }) => {
   await expectReading(page, "坐酉向卯", "90.0°");
 });
 
-test("八方 buttons, slider and degree input set the facing", async ({ page }) => {
+test("slider and degree input set the facing", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "东", exact: true }).click();
-  await expectReading(page, "坐酉向卯", "90.0°");
-  await expect(page.getByRole("button", { name: "东", exact: true })).toHaveAttribute("aria-pressed", "true");
-
   await page.getByLabel("拖动调整向度").fill("270");
   await expectReading(page, "坐卯向酉", "270.0°");
 
@@ -170,7 +166,9 @@ test("the luopan spans the screen width minus 16px gutters on a short phone", as
 
 test("remembers the last manual facing", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "西南" }).click();
+  const input = page.getByLabel("输入向度");
+  await input.fill("225");
+  await input.press("Enter");
   await expectReading(page, "坐艮向坤", "225.0°");
   await page.waitForTimeout(600);
   await page.reload();
@@ -251,7 +249,63 @@ test.describe("compass mode", () => {
     await page.mouse.move(q.x, q.y, { steps: 5 });
     await page.mouse.up();
     await expect(page.getByText("已退出指南针模式")).toBeVisible();
-    await expect(page.getByRole("button", { name: "西北" })).toBeVisible();
+    await expect(startCompassButton(page)).toBeVisible();
+  });
+
+  /** 连续送出同一方位，等平滑后的读数追上。 */
+  const settle = async (page: Page, alpha: number) => {
+    for (let i = 0; i < 40; i++) {
+      await orient(page, alpha);
+      await page.waitForTimeout(16);
+    }
+  };
+
+  test("寻方 starts the compass and guides the phone top to the direction", async ({ page, context }) => {
+    await context.grantPermissions(["accelerometer", "gyroscope", "magnetometer"]);
+    await page.goto("/");
+    const southeast = page.getByRole("button", { name: "东南", exact: true });
+    await southeast.click();
+    await expect(page.getByText("正在取得方位")).toBeVisible();
+    await expect(southeast).toHaveAttribute("aria-pressed", "true");
+    await expect(southeast).toBeFocused();
+
+    // alpha 287 → 手机顶端指向 73°；东南的中线是 135°
+    await orient(page, 287);
+    await expectReading(page, "坐庚向甲", "73.0°");
+    await expect(page.getByText("东南：向右转 62°")).toBeVisible();
+
+    await settle(page, 240); // 120°
+    await expect(page.getByText("已在东南内，再向右转 15°")).toBeVisible();
+
+    await settle(page, 223); // 137°
+    await expect(page.getByRole("status")).toHaveText("正对东南");
+    await expect(page.getByText("已在东南内")).toHaveCount(0);
+
+    // 再按一次取消寻方，仍留在指南针模式
+    await southeast.click();
+    await expect(southeast).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("status")).toHaveText("");
+    await expect(page.getByRole("button", { name: "退出指南针" })).toBeVisible();
+  });
+
+  test("choosing a direction unlocks, and exiting clears it", async ({ page, context }) => {
+    await context.grantPermissions(["accelerometer", "gyroscope", "magnetometer"]);
+    await page.goto("/");
+    await startCompassButton(page).click();
+    await expect(page.getByText("正在取得方位")).toBeVisible();
+    await orient(page, 90);
+    await page.getByRole("button", { name: "锁定读数", exact: true }).click();
+    await expect(page.getByRole("button", { name: "已锁定" })).toBeVisible();
+
+    const north = page.getByRole("button", { name: "北", exact: true });
+    await north.click();
+    await expect(page.getByRole("button", { name: "跟随中" })).toBeVisible();
+    await settle(page, 0);
+    await expect(page.getByRole("status")).toHaveText("正对北");
+
+    await page.getByRole("button", { name: "退出指南针" }).click();
+    await expect(startCompassButton(page)).toBeVisible();
+    await expect(north).toHaveAttribute("aria-pressed", "false");
   });
 
   test("does not ask to lay the phone flat before a heading arrives", async ({ page, context }) => {
@@ -288,14 +342,15 @@ test.describe("compass mode", () => {
     await startCompassButton(page).click();
     await expect(page.getByText("收不到方位数据。")).toBeVisible({ timeout: 6000 });
     await page.getByRole("button", { name: "退出指南针" }).click();
-    await expect(page.getByRole("button", { name: "西北" })).toBeVisible();
+    await expect(startCompassButton(page)).toBeVisible();
   });
 });
 
-test("desktop marks the compass as unavailable", async ({ page, isMobile }) => {
+test("desktop marks the compass and 寻方 as unavailable", async ({ page, isMobile }) => {
   test.skip(isMobile);
   await page.goto("/");
   await expect(startCompassButton(page)).toBeDisabled();
+  await expect(page.getByRole("button", { name: "东南", exact: true })).toBeDisabled();
   await expect(page.getByText("这台设备没有方位传感器，请用手机打开。")).toBeVisible();
 });
 

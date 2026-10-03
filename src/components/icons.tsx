@@ -18,3 +18,12 @@ export function ShareIcon({ size = 20, className }: { size?: number; className?:
     </svg>
   );
 }
+
+export function CompassIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2 5-5 2 2-5z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

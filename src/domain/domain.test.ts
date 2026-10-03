@@ -8,6 +8,7 @@ import {
 } from "./mountains";
 import { DIRECTIONS, PALACES, directionAt, palaceAt } from "./trigrams";
 import { readingAt, sittingFacingParts, sittingFacingText, voidText } from "./reading";
+import { seekGuide, seekText } from "./seek";
 
 const names = (ms: readonly { name: string }[]) => ms.map((m) => m.name).join("");
 
@@ -181,5 +182,33 @@ describe("读数", () => {
         expect(r.void.kind === "great").toBe(a.palace !== b.palace);
       }
     }
+  });
+});
+
+describe("寻方", () => {
+  const text = (facing: number, target: number) => seekText(seekGuide(facing, target));
+
+  it("turns the shorter way to the 中线 of the target", () => {
+    // 东南 = 3，中线 135°
+    expect(text(73, 3)).toBe("东南：向右转 62°");
+    expect(text(250, 3)).toBe("东南：向左转 115°");
+    expect(text(315, 3)).toBe("东南：向右转 180°");
+    // 北 = 0，跨过 0°
+    expect(text(300, 0)).toBe("北：向右转 60°");
+    expect(text(40, 0)).toBe("北：向左转 40°");
+  });
+
+  it("says when the facing is already inside the target", () => {
+    expect(text(120, 3)).toBe("已在东南内，再向右转 15°");
+    expect(text(157.4, 3)).toBe("已在东南内，再向左转 22°");
+    // 157.5° 已经是南
+    expect(text(157.5, 3)).toBe("东南：向左转 23°");
+  });
+
+  it("is on target within 5° of the 中线", () => {
+    expect(text(130.1, 3)).toBe("正对东南");
+    expect(text(357, 0)).toBe("正对北");
+    expect(seekGuide(130, 3).onTarget).toBe(false);
+    expect(text(130, 3)).toBe("已在东南内，再向右转 5°");
   });
 });
